@@ -18,9 +18,12 @@ void AddToProduct(sqlite3* db);
 void AddToMusic(sqlite3* db);
 void AddToInstrument(sqlite3* db);
 void UpdateTable(sqlite3* db, int u);
-void DeleteTableEntry(sqlite3*, int d);
+void DeleteTableEntry(sqlite3* db, int d);
+void ViewTableRow(sqlite3* db, int r);
 sqlite3_stmt* RunQuery(sqlite3* db, string q);
 vector<string> MakeVector(sqlite3* db, string& q, sqlite3_stmt* s);
+void WhatAndPK(string wp[2], int w);
+int SubMenuChoice();
 bool Finalize(sqlite3* db, string q);
 bool CheckIfValidCurrency(string const& input);
 
@@ -49,11 +52,9 @@ int main()
 		case 1: // Add to table
 			PrintMenu(1);
 			while (1) {
-				getline(cin, uin);
-				if (uin == "-1") { break; }
-				try { num = stoi(uin); }
-				catch (...) { num = 0; }
-				if (num > 0 && num <= 6) { 
+				num = SubMenuChoice();
+				if (num == -1) { break; }
+				if (num <= 6) {
 					switch (num) {
 					case 1: AddToStore(mydb); break;
 					case 2: AddToEmployee(mydb); break;
@@ -63,27 +64,26 @@ int main()
 					case 6: AddToInstrument(mydb);
 					}
 					break;
-				}
-				else { cout << "Invalid choice. Please try again.\n"; }
+				} else { cout << "Invalid choice. Please try again.\n"; }
 			}
 			break;
 		case 2: // Update table
 			PrintMenu(2);
-			while (1) {
-				getline(cin, uin);
-				if (uin == "-1") { break; }
-				try { num = stoi(uin); }
-				catch (...) { num = 0; }
-				if (num > 0 && num <= 9) {
-					UpdateTable(mydb, num);
-					break;
-				}	
-				else { cout << "Invalid choice. Please try again.\n"; }
-			}
+			num = SubMenuChoice();
+			if (num == -1) { break; }
+			UpdateTable(mydb, num);
 			break;
 		case 3:
+			PrintMenu(3);
+			num = SubMenuChoice();
+			if (num == -1) { break; }
+			DeleteTableEntry(mydb, num);
 			break;
 		case 4:
+			PrintMenu(4);
+			num = SubMenuChoice();
+			if (num == -1) { break; }
+			ViewTableRow(mydb, num);
 			break;
 		case 5:
 			break;
@@ -123,6 +123,9 @@ void PrintMenu(int c) {
 		break;
 	case 3: // Delete data from table.
 		cout << "Please select which table you would like to delete data from. Type -1 to cancel.\n";
+		for (string s : tables) { cout << s << endl; }
+	case 4: // View row in table.
+		cout << "Please select which table you would like to view data in. Type -1 to cancel\n";
 		for (string s : tables) { cout << s << endl; }
 	}
 
@@ -452,72 +455,38 @@ void AddToInstrument(sqlite3* db) {
 
 void UpdateTable(sqlite3* db, int u)
 {
-	string what, pkin, uin, update, pk; // what = the table being edited, pkin = the id of the table being edited, pk = name of that table's primary key
+	string whatpk[2];// whatpk[0] = the table being edited, whatpk[1] = name of that table's primary key
+	string pkin, uin, update; // , pkin = the id of the table being edited, 
 	vector<string> pks; // Collection of valid pks from table.
 	vector<string> atts; // Attributes that can be edited.
 
+	WhatAndPK(whatpk, u);
 	// Switch statement prepares table-specific terminology for sql statement. 
 	switch (u) {
-	case 1: // Store
-		what = "STORE";
-		atts = { "STORE_NAME", "STORE_EMAIL", "STORE_PHONE", "STORE_ADDRESS" };
-		pk = "STORE_ID";
-		break;
-	case 2: // Employee
-		what = "EMPLOYEE";
-		atts = { "STORE_ID", "EMPLOYEE_FIRSTNAME", "EMPLOYEE_LASTNAME", "EMPLOYEE_EMAIL" ,"EMPLOYEE_PHONE" };
-		pk = "EMPLOYEE_ID";
-		break;
-	case 3: // Customer
-		what = "CUSTOMER";
-		atts = { "CUSTOMER_FIRSTNAME", "CUSTOMER_LASTNAME", "CUSTOMER_ADDRESS", "CUSTOMER_PHONE", "CUSTOMER_TYPE" };
-		pk = "CUSTOMER_ID";
-		break;
-	case 4: // Product
-		what = "PRODUCT";
-		atts = { "PRODUCT_NAME", "PRODUCT_PRICE", "PRODUCT_BRAND", "PRODUCT_STOCK" };
-		pk = "PRODUCT_ID";
-		break;
-	case 5: // Music
-		what = "MUSIC";
-		atts = { "PRODUCT_NAME", "PRODUCT_PRICE", "PRODUCT_STOCK", "MUSIC_ARTIST", "MUSIC_GENRE", "MUSIC_RELEASEDATE", "MUSIC_TYPE"};
-		pk = "PRODUCT_ID";
-		break;
-	case 6: // Instrument
-		what = "INSTRUMENT";
-		atts = { "PRODUCT_NAME", "PRODUCT_PRICE", "PRODUCT_BRAND", "PRODUCT_STOCK", "INSTRUMENT_TYPE", "INSTRUMENT_CONDITION"};
-		pk = "PRODUCT_ID";
-		break;
-	case 7: // Sales
-		what = "SALES";
-		atts = { "CUSTOMER_ID", "PRODUCT_ID", "QUANTITY", "PRODUCT_PRICE", "PAYMENT_METHOD", "DISCOUNT" };
-		pk = "ORDER_ID";
-		break;
-	case 8: // Rentals
-		what = "RENTALS";
-		atts = { "CUSTOMER_ID", "PRODUCT_ID", "CHECKOUT_DATE", "CHECKIN_DATE", "MONTHLY_FEE", "PRODUCT_PRICE", "TOTAL_PAID" };
-		pk = "RENTAL_ID";
-		break;
-	case 9: // Services
-		what = "SERVICES";
-		atts = { "SERVICE_DESCRIPTION", "SERVICE_PRICE", "SERVICE_DATE", "CUSTOMER_ID" };
-		pk = "SERVICE_ID";
-		break;
+	case 1: atts = { "STORE_NAME", "STORE_EMAIL", "STORE_PHONE", "STORE_ADDRESS" }; break;
+	case 2: atts = { "STORE_ID", "EMPLOYEE_FIRSTNAME", "EMPLOYEE_LASTNAME", "EMPLOYEE_EMAIL" ,"EMPLOYEE_PHONE" }; break;
+	case 3: atts = { "CUSTOMER_FIRSTNAME", "CUSTOMER_LASTNAME", "CUSTOMER_ADDRESS", "CUSTOMER_PHONE", "CUSTOMER_TYPE" }; break;
+	case 4: atts = { "PRODUCT_NAME", "PRODUCT_PRICE", "PRODUCT_BRAND", "PRODUCT_STOCK" }; break;
+	case 5: atts = { "PRODUCT_NAME", "PRODUCT_PRICE", "PRODUCT_STOCK", "MUSIC_ARTIST", "MUSIC_GENRE", "MUSIC_RELEASEDATE", "MUSIC_TYPE" }; break;
+	case 6: atts = { "PRODUCT_NAME", "PRODUCT_PRICE", "PRODUCT_BRAND", "PRODUCT_STOCK", "INSTRUMENT_TYPE", "INSTRUMENT_CONDITION" }; break;
+	case 7: atts = { "CUSTOMER_ID", "PRODUCT_ID", "QUANTITY", "PRODUCT_PRICE", "PAYMENT_METHOD", "DISCOUNT" }; break;
+	case 8: atts = { "CUSTOMER_ID", "PRODUCT_ID", "CHECKOUT_DATE", "CHECKIN_DATE", "MONTHLY_FEE", "PRODUCT_PRICE", "TOTAL_PAID" };  break;
+	case 9: atts = { "SERVICE_DESCRIPTION", "SERVICE_PRICE", "SERVICE_DATE", "CUSTOMER_ID" }; break;
 	}
 
-	string query = "SELECT " + pk + " FROM " + what;
+	string query = "SELECT " + whatpk[1] + " FROM " + whatpk[0];
 	sqlite3_stmt* up = RunQuery(db, query);
 	pks = MakeVector(db, query, up);
 	if (pks.size() == 0) { return; }
 
-	cout << "Please type the " + pk + " of the " + what + " you wish to update. Type -1 to cancel.\n";
+	cout << "Please type the " + whatpk[1] + " of the " + whatpk[0] + " you wish to update. Type -1 to cancel.\n";
 	while (1) {
 		getline(cin, pkin);
 		if (pkin == "-1") { return; }
 		if (count(pks.begin(), pks.end(), pkin)) { break; }
-		else { cout << "Invalid " + pk + ". Please try again.\n"; }
+		else { cout << "Invalid " + whatpk[1] + ". Please try again.\n"; }
 	}
-	cout << "Please indicate which attribute of this " + what + " you wish to update.\n";
+	cout << "Please indicate which attribute of this " + whatpk[0] + " you wish to update.\n";
 	cout << "You can cancel the operation by typing -1. The operation will repeat until you type\"done\".\n";
 	for (int i = 0; i < atts.size(); ++i) { cout << i + 1 << ". " << atts[i] << endl; }
 	int num;
@@ -541,55 +510,92 @@ void UpdateTable(sqlite3* db, int u)
 	// Remove leftover ", "
 	update.pop_back();
 	update.pop_back();
-	query = "UPDATE " + what;
+
+	cout << "Updating " + whatpk[0] + ". . .\n";
+	sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
+	query = "UPDATE " + whatpk[0];
 	query += " SET " + update;
-	query += " WHERE " + pk + " = " + pkin;
-	cout << "Updating table " + what + ".\n";
+	query += " WHERE " + whatpk[1] + " = " + pkin;
+	cout << "Updating table " + whatpk[0] + ".\n";
 	Finalize(db, query);
 }
 
-void DeleteTableEntry(sqlite3*, int d)
+void DeleteTableEntry(sqlite3* db, int d)
 {
-	string what, pkin, pk; // what = table being edited, pkin = user's selected id, pk = the primary key of the table being edited
+	string whatpk[2]; // whatpk[0] = the table being edited, whatpk[1] = name of that table's primary key
+	string pkin, uin; // pkin = user's selected id
 	vector<string> pks; // collection of available primary key values
-	switch (d) {
-	case 1: // Store
-		what = "STORE";
-		pk = "STORE_ID";
-		break;
-	case 2: // Employee
-		what = "EMPLOYEE";
-		pk = "EMPLOYEE_ID";
-		break;
-	case 3: // Customer
-		what = "CUSTOMER";
-		pk = "CUSTOMER_ID";
-		break;
-	case 4: // Product
-		what = "PRODUCT";
-		pk = "PRODUCT_ID";
-		break;
-	case 5: // Music
-		what = "MUSIC";
-		pk = "PRODUCT_ID";
-		break;
-	case 6: // Instrument
-		what = "INSTRUMENT";
-		pk = "PRODUCT_ID";
-		break;
-	case 7: // Sales
-		what = "SALES";
-		pk = "ORDER_ID";
-		break;
-	case 8: // Rentals
-		what = "RENTALS";
-		pk = "RENTAL_ID";
-		break;
-	case 9: // Services
-		what = "SERVICES";
-		pk = "SERVICE_ID";
-		break;
+	WhatAndPK(whatpk, d);
+	
+	string query = "SELECT " + whatpk[1] + " FROM " + whatpk[0];
+	sqlite3_stmt* del = RunQuery(db, query);
+	pks = MakeVector(db, query, del);
+	if (pks.size() == 0) { return; }
+	cout << "Please type the " + whatpk[1] + " of the " + whatpk[0] + " you wish to delete. Type -1 to cancel.\n";
+	while (1) {
+		getline(cin, pkin);
+		if (pkin == "-1") { return; }
+		if (count(pks.begin(), pks.end(), pkin)) { break; }
+		else { cout << "Invalid " + whatpk[1] + ". Please try again.\n"; }
 	}
+	cout << "ALERT: Deleting a row from a table cannot be undone. If you do not know whatpk[0] data you are deleting, you can view it from the main menu.\n";
+	cout << "Type \"I understand\" to finalize deletion. Otherwise, type -1 to cancel.\n";
+	while (1) {
+		getline(cin, uin);
+		if (uin == "-1") { return; }
+		if (uin == "I understand") { break; }
+		else { cout << "Not recognized. Please try again.\n"; }
+	}
+
+	cout << "Deleting row from " + whatpk[0] + ". . .\n";
+	sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
+	query = "DELETE FROM " + whatpk[0];
+	query += " WHERE " + whatpk[1] + " = " + pkin;
+	Finalize(db, query);
+}
+
+void ViewTableRow(sqlite3* db, int r)
+{
+	string whatpk[2];
+	string pkin;
+	vector<string> atts, pks, results;
+	WhatAndPK(whatpk, r);
+
+	// Set descriptions for viewable attributes. Includes all columns in each table except the primary key.
+	switch (r) {
+	case 1: atts = { "Store name: ", "Store email: ", "Store phone: ", "Store address: " }; break;
+	case 2: atts = { "Store ID: ", "First name: ", "Last name: ", "Employee email: ", "Employee phone: " }; break;
+	case 3: atts = { "First name: ", "Last name: ", "Customer address: ", "Customer phone: ", "Rentals: ", "Customer type: " }; break;
+	case 4: atts = { "Product name: ", "Price: $", "Brand: ", "Product stock: " }; break;
+	case 5: atts = { "Music name: ", "Price: $", "Product stock: ", "Artist: ", "Genre: ", "Release date: ", "Music type: " }; break;
+	case 6: atts = { "Instrument name: ", "Price: $", "Brand: ", "Product stock: ", "Instrument type: ", "Condition: " }; break;
+	case 7: atts = { "Customer ID: ", "Product ID: ", "Quantity: ", "Price: ", "Payment method: ", "Discount: " }; break;
+	case 8: atts = { "Customer ID; ", "Product ID: ", "Check-out date: ", "Check-in date: ", "Monthly fee: $", "Product price: $", "Total paid: $" }; break;
+	case 9: atts = { "Service description: ", "Service price: $", "Service date: ", "Customer ID: " }; break;
+	}
+
+	string query = "SELECT " + whatpk[1] + " FROM " + whatpk[0];
+	sqlite3_stmt* see = RunQuery(db, query);
+	pks = MakeVector(db, query, see);
+	if (pks.size() == 0) { return; }
+	cout << "Please type the " + whatpk[1] + " of the " + whatpk[0] + " you wish to view. Type -1 to cancel.\n";
+	while (1) {
+		getline(cin, pkin);
+		if (pkin == "-1") { return; }
+		if (count(pks.begin(), pks.end(), pkin)) { break; }
+		else { cout << "Invalid " + whatpk[1] + ". Please try again.\n"; }
+	}
+
+	query = "SELECT * from " + whatpk[0];
+	query += " WHERE " + whatpk[1] + " = " + pkin;
+	see = RunQuery(db, query);
+	sqlite3_step(see);
+	int ct = sqlite3_column_count(see);
+	for (int i = 1; i < ct; ++i) { results.push_back(reinterpret_cast<const char*>(sqlite3_column_text(see, i))); }
+	if (results.size() != atts.size()) { cout << "Something went wrong with gathering results.\n"; return; }
+	cout << "--------------------------------------\n";
+	for (int j = 0; j < results.size(); ++j) { cout << atts[j] + results[j] << endl; }
+	cout << "--------------------------------------\n\n";
 }
 
 sqlite3_stmt* RunQuery(sqlite3* db, string q) {
@@ -614,6 +620,61 @@ vector<string> MakeVector(sqlite3* db, string& q, sqlite3_stmt* s) {
 	sqlite3_reset(s);
 	q.clear();
 	return v;
+}
+
+void WhatAndPK(string wp[2], int w)
+{
+	switch (w) {
+	case 1: // Store
+		wp[0] = "STORE";
+		wp[1] = "STORE_ID";
+		break;
+	case 2: // Employee
+		wp[0] = "EMPLOYEE";
+		wp[1] = "EMPLOYEE_ID";
+		break;
+	case 3: // Customer
+		wp[0] = "CUSTOMER";
+		wp[1] = "CUSTOMER_ID";
+		break;
+	case 4: // Product
+		wp[0] = "PRODUCT";
+		wp[1] = "PRODUCT_ID";
+		break;
+	case 5: // Music
+		wp[0] = "MUSIC";
+		wp[1] = "PRODUCT_ID";
+		break;
+	case 6: // Instrument
+		wp[0] = "INSTRUMENT";
+		wp[1] = "PRODUCT_ID";
+		break;
+	case 7: // Sales
+		wp[0] = "SALES";
+		wp[1] = "ORDER_ID";
+		break;
+	case 8: // Rentals
+		wp[0] = "RENTALS";
+		wp[1] = "RENTAL_ID";
+		break;
+	case 9: // Services
+		wp[0] = "SERVICES";
+		wp[1] = "SERVICE_ID";
+		break;
+	}
+}
+
+int SubMenuChoice()
+{
+	string uin;
+	int num;
+	while (1) {
+		getline(cin, uin);
+		try { num = stoi(uin); }
+		catch (...) { num = 0; }
+		if ((num > 0 && num <= 9) || num == -1) { return num; }
+		else { cout << "Invalid choice. Please try again.\n"; }
+	}
 }
 
 bool Finalize(sqlite3* db, string q) {
