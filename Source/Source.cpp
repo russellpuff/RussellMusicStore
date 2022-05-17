@@ -20,11 +20,15 @@ void AddToInstrument(sqlite3* db);
 void UpdateTable(sqlite3* db, int u);
 void DeleteTableEntry(sqlite3* db, int d);
 void ViewTableRow(sqlite3* db, int r);
+void AddToSales(sqlite3* db);
+void AddToRentals(sqlite3* db);
+void AddToServices(sqlite3* db);
 sqlite3_stmt* RunQuery(sqlite3* db, string q);
 vector<string> MakeVector(sqlite3* db, string& q, sqlite3_stmt* s);
+void TypeSelector(vector<string> v, string& t);
 void WhatAndPK(string wp[2], int w);
 int SubMenuChoice();
-bool Finalize(sqlite3* db, string q);
+bool Finalize(sqlite3* db, string q, bool f = true);
 bool CheckIfValidCurrency(string const& input);
 
 int main()
@@ -73,23 +77,26 @@ int main()
 			if (num == -1) { break; }
 			UpdateTable(mydb, num);
 			break;
-		case 3:
+		case 3: // Delete from table.
 			PrintMenu(3);
 			num = SubMenuChoice();
 			if (num == -1) { break; }
 			DeleteTableEntry(mydb, num);
 			break;
-		case 4:
+		case 4: // View table info.
 			PrintMenu(4);
 			num = SubMenuChoice();
 			if (num == -1) { break; }
 			ViewTableRow(mydb, num);
 			break;
-		case 5:
+		case 5: // Create new sales entry.
+			AddToSales(mydb);
 			break;
-		case 6:
+		case 6: // Create new rentals entry.
+			AddToRentals(mydb);
 			break;
-		case 7:
+		case 7: // Create new services entry.
+			AddToServices(mydb);
 			break;
 		case -1:
 			return 0;
@@ -237,20 +244,9 @@ void AddToCustomer(sqlite3* db) {
 	cout << "Please type the customer's phone number. This is mandatory.\n";
 	getline(cin, cphone);
 	if (cphone == "-1") { return; }
+
 	cout << "Please indicate the customer's type by selecting a number from the following list:\n";
-	for (int i = 0; i < custtypes.size(); ++i) { cout << i + 1 << ". " << custtypes[i] << endl; }
-	int num;
-	while (1) {
-		getline(cin, ctype);
-		if (ctype == "-1") { return; }
-		try { num = stoi(ctype); }
-		catch (...) { num = -1; }
-		if (num > 0 && num <= custtypes.size()) { 
-			ctype = custtypes[num - 1]; 
-			break;
-		}
-		else { cout << "Invalid choice. Please try again.\n"; }
-	}
+	TypeSelector(custtypes, ctype);
 	
 	cout << "Starting Customer add process.\n";
 	sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
@@ -345,18 +341,7 @@ void AddToMusic(sqlite3* db) {
 		else { cout << "Invalid number. Please try again.\n"; }
 	}
 	cout << "Please indicate the music's type by selecting a number from the following list:\n";
-	for (int i = 0; i < mustypes.size(); ++i) { cout << i + 1 << ". " << mustypes[i] << endl; }
-	while (1) {
-		getline(cin, mtype);
-		if (mtype == "-1") { return; }
-		try { num = stoi(mtype); }
-		catch (...) { num = -1; }
-		if (num > 0 && num <= mustypes.size()) {
-			mtype = mustypes[num - 1];
-			break;
-		}
-		else { cout << "Invalid choice. Please try again.\n"; }
-	}
+	TypeSelector(mustypes, mtype);
 
 	cout << "Starting Music add process.\n";
 	sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
@@ -414,31 +399,10 @@ void AddToInstrument(sqlite3* db) {
 		else { cout << "Invalid number. Please try again.\n"; }
 	}
 	cout << "Please indicate the instrument's type by selecting a number from the following list:\n";
-	for (int i = 0; i < insttypes.size(); ++i) { cout << i + 1 << ". " << insttypes[i] << endl; }
-	while (1) {
-		getline(cin, itype);
-		if (itype == "-1") { return; }
-		try { num = stoi(itype); }
-		catch (...) { num = -1; }
-		if (num > 0 && num <= insttypes.size()) {
-			itype = insttypes[num - 1];
-			break;
-		}
-		else { cout << "Invalid choice. Please try again.\n"; }
-	}
+	TypeSelector(insttypes, itype);
+
 	cout << "Please indicate the instrument's condition by selecting a number from the following list:\n";
-	for (int i = 0; i < instconds.size(); ++i) { cout << i + 1 << ". " << instconds[i] << endl; }
-	while (1) {
-		getline(cin, icond);
-		if (icond == "-1") { return; }
-		try { num = stoi(icond); }
-		catch (...) { num = -1; }
-		if (num > 0 && num <= instconds.size()) {
-			icond = instconds[num - 1];
-			break;
-		}
-		else { cout << "Invalid choice. Please try again.\n"; }
-	}
+	TypeSelector(instconds, icond);
 
 	cout << "Starting Instrument add process.\n";
 	sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
@@ -471,13 +435,14 @@ void UpdateTable(sqlite3* db, int u)
 	case 6: atts = { "PRODUCT_NAME", "PRODUCT_PRICE", "PRODUCT_BRAND", "PRODUCT_STOCK", "INSTRUMENT_TYPE", "INSTRUMENT_CONDITION" }; break;
 	case 7: atts = { "CUSTOMER_ID", "PRODUCT_ID", "QUANTITY", "PRODUCT_PRICE", "PAYMENT_METHOD", "DISCOUNT" }; break;
 	case 8: atts = { "CUSTOMER_ID", "PRODUCT_ID", "CHECKOUT_DATE", "CHECKIN_DATE", "MONTHLY_FEE", "PRODUCT_PRICE", "TOTAL_PAID" };  break;
-	case 9: atts = { "SERVICE_DESCRIPTION", "SERVICE_PRICE", "SERVICE_DATE", "CUSTOMER_ID" }; break;
+	case 9: atts = { "CUSTOMER_ID", "SERVICE_DESCRIPTION", "SERVICE_DATE", "SERVICE_PRICE", "SERVICE DISCOUNT" }; break;
 	}
 
 	string query = "SELECT " + whatpk[1] + " FROM " + whatpk[0];
 	sqlite3_stmt* up = RunQuery(db, query);
 	pks = MakeVector(db, query, up);
 	if (pks.size() == 0) { return; }
+	sqlite3_finalize(up);
 
 	cout << "Please type the " + whatpk[1] + " of the " + whatpk[0] + " you wish to update. Type -1 to cancel.\n";
 	while (1) {
@@ -531,6 +496,8 @@ void DeleteTableEntry(sqlite3* db, int d)
 	sqlite3_stmt* del = RunQuery(db, query);
 	pks = MakeVector(db, query, del);
 	if (pks.size() == 0) { return; }
+	sqlite3_finalize(del);
+
 	cout << "Please type the " + whatpk[1] + " of the " + whatpk[0] + " you wish to delete. Type -1 to cancel.\n";
 	while (1) {
 		getline(cin, pkin);
@@ -571,13 +538,14 @@ void ViewTableRow(sqlite3* db, int r)
 	case 6: atts = { "Instrument name: ", "Price: $", "Brand: ", "Product stock: ", "Instrument type: ", "Condition: " }; break;
 	case 7: atts = { "Customer ID: ", "Product ID: ", "Quantity: ", "Price: ", "Payment method: ", "Discount: " }; break;
 	case 8: atts = { "Customer ID; ", "Product ID: ", "Check-out date: ", "Check-in date: ", "Monthly fee: $", "Product price: $", "Total paid: $" }; break;
-	case 9: atts = { "Service description: ", "Service price: $", "Service date: ", "Customer ID: " }; break;
+	case 9: atts = { "Customer ID: ", "Service description: ", "Service date: ", "Service price: $", "Discount: $" }; break;
 	}
 
 	string query = "SELECT " + whatpk[1] + " FROM " + whatpk[0];
 	sqlite3_stmt* see = RunQuery(db, query);
 	pks = MakeVector(db, query, see);
 	if (pks.size() == 0) { return; }
+
 	cout << "Please type the " + whatpk[1] + " of the " + whatpk[0] + " you wish to view. Type -1 to cancel.\n";
 	while (1) {
 		getline(cin, pkin);
@@ -596,6 +564,299 @@ void ViewTableRow(sqlite3* db, int r)
 	cout << "--------------------------------------\n";
 	for (int j = 0; j < results.size(); ++j) { cout << atts[j] + results[j] << endl; }
 	cout << "--------------------------------------\n\n";
+	sqlite3_finalize(see);
+}
+
+void AddToSales(sqlite3* db)
+{
+	string cid, pid, pmeth, prodcat, uin;
+	float discmult = 0, pprice, pdisc;
+	int stock, qty;
+	vector<string> customers, pmethods, prod, mus, inst;
+
+	// Get available customer ids.
+	string query = "SELECT CUSTOMER_ID FROM CUSTOMER";
+	sqlite3_stmt* ats = RunQuery(db, query);
+	customers = MakeVector(db, query, ats);
+	if (customers.size() == 0) { return; }
+
+	// Get available payment methods.
+	query = "SELECT PAYMENT_METHOD FROM PAYMENT";
+	ats = RunQuery(db, query);
+	pmethods = MakeVector(db, query, ats);
+	if (pmethods.size() == 0) { return; }
+
+	// Get available products.
+	query = "SELECT PRODUCT_ID FROM PRODUCT";
+	ats = RunQuery(db, query);
+	prod = MakeVector(db, query, ats);
+	if (prod.size() == 0) { return; }
+
+	// Get available music.
+	query = "SELECT PRODUCT_ID FROM MUSIC";
+	ats = RunQuery(db, query);
+	mus = MakeVector(db, query, ats);
+	if (mus.size() == 0) { return; }
+
+	// Get available instruments.
+	query = "SELECT PRODUCT_ID FROM INSTRUMENT";
+	ats = RunQuery(db, query);
+	inst = MakeVector(db, query, ats);
+	if (inst.size() == 0) { return; }
+	
+	// Combine vectors.
+	prod.reserve(mus.size() + inst.size());
+	prod.insert(prod.end(), mus.begin(), mus.end());
+	prod.insert(prod.end(), inst.begin(), inst.end());
+	// Free memory from newly unused vectors.
+	mus = vector<string>(); 
+	inst = vector<string>();
+
+	cout << "Please type the customer ID of the customer for this sales transaction. You can type -1 at any time to cancel.\n";
+	while (1) {
+		getline(cin, cid);
+		if (cid == "-1") { return; }
+		if (count(customers.begin(), customers.end(), cid)) { break; }
+		else { cout << "Invalid customer ID. Please try again.\n"; }
+	}
+
+	query = "SELECT CUSTOMER_TYPE FROM CUSTOMER ";
+	query += "WHERE CUSTOMER_ID = " + cid;
+	ats = RunQuery(db, query);
+	sqlite3_step(ats);
+	uin = reinterpret_cast<const char*>(sqlite3_column_text(ats, 0));
+	if (uin == "VIP") { discmult = -0.15; } // VIP customers have a 15% discount. 
+	sqlite3_reset(ats);
+
+	cout << "Please type the product ID of the product being purchased in this sales transaction.\n";
+	while (1) {
+		getline(cin, pid);
+		if (cid == "-1") { return; }
+		if (count(prod.begin(), prod.end(), pid)) { break; }
+		else { cout << "Invalid product ID. Please try again.\n"; }
+	}
+
+	// Needlessly elaborate work to grab product price and quantity from one of 3 tables based on pid.
+	int temp = stoi(pid);
+	if (temp > 0 && temp <= 99) { prodcat = "PRODUCT"; }
+	else if (temp > 1000 && temp <= 9999) { prodcat = "MUSIC"; }
+	else { prodcat = "INSTRUMENT"; }
+	query = "SELECT PRODUCT_PRICE, PRODUCT_STOCK FROM " + prodcat;
+	query += " WHERE PRODUCT_ID = " + pid;
+	ats = RunQuery(db, query);
+
+	sqlite3_step(ats);
+	uin = reinterpret_cast<const char*>(sqlite3_column_text(ats, 0));
+	pprice = stof(uin); // Funky business happening with the cast. 
+	uin = reinterpret_cast<const char*>(sqlite3_column_text(ats, 1));
+	stock = stoi(uin);
+	sqlite3_finalize(ats);
+	// End complicated work I could have avoided if my db was better designed.
+
+	cout << "Please input the quantity of the product being purchased in this sales transaction.\n";
+	while (1) {
+		getline(cin, uin);
+		if (uin == "-1") { return; }
+		try { qty = stoi(uin); }
+		catch (...) { qty = -1; }
+		if (qty > 0) {
+			if (qty <= stock) { break; }
+			else { cout << "Error: quantity is higher than product's current stock. Please input a new value.\n"; }
+		} 
+		else { cout << "Invalid quantity. Please try again.\n"; }
+	}
+
+	cout << "Please indicate the payment method by selecting a number from the following list:\n";
+	TypeSelector(pmethods, pmeth);
+
+	cout << "Please type the discount for this transaction as a negative currency amount. The currency symbol isn't necessary.\n";
+	cout << "This number is added to automatic discounts. Do not include automatic discounts.\n";
+	while (1) {
+		getline(cin, uin);
+		if (uin == "-1") { return; }
+		if (CheckIfValidCurrency(uin)) { 
+			pdisc = stof(uin);
+			if (pdisc <= 0) { break; }
+			else { cout << "Error: Discount must be zero or a negative number.\n"; }
+		}
+		else { cout << "Invalid discount. Please try again.\n"; }
+	}
+	pdisc += (pprice * discmult);
+	pdisc = round(pdisc * 100.0) / 100.0;
+
+	// GIVE ME A DRINK BAR-TENDER
+	cout << "Creating sales invoice.\n";
+	sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
+	cout << "Assemblin invoice. . .\n";
+	query = "INSERT INTO SALES (CUSTOMER_ID, PRODUCT_ID, QUANTITY, PRODUCT_PRICE, PAYMENT_METHOD, DISCOUNT) ";
+	query += "VALUES (" + cid + ", ";  // CUSTOMER_ID
+	query += pid + ", "; // PRODUCT_ID
+	query += to_string(qty) + ", "; // QUANTITY
+	query += to_string(pprice) + ", "; // PRODUCT_PRICE
+	query += "'" + pmeth + "', "; // PAYMENT_METHOD
+
+	int precisionVal = 2; // Corrects horrifically rounded float value. 
+	string discount = to_string(pdisc).substr(0, to_string(pdisc).find(".") + precisionVal + 1);
+	query += discount + "); "; // DISCOUNT
+
+	cout << "Updating stock levels. . .\n";
+	query += "UPDATE " + prodcat;
+	query += " SET PRODUCT_STOCK = PRODUCT_STOCK - " + to_string(qty);
+	query += " WHERE PRODUCT_ID = " + pid + ";";
+	Finalize(db, query);
+}
+
+void AddToRentals(sqlite3* db)
+{
+	string cid, pid, outdate, indate, pprice, mfee, tpaid, rentals;
+	vector<string> customers, products;
+
+	// Get available customers.
+	string query = "SELECT CUSTOMER_ID FROM CUSTOMER";
+	sqlite3_stmt* atr = RunQuery(db, query);
+	customers = MakeVector(db, query, atr);
+	if (customers.size() == 0) { return; }
+
+	// Get available instruments.
+	query = "SELECT PRODUCT_ID FROM INSTRUMENT";
+	atr = RunQuery(db, query);
+	products = MakeVector(db, query, atr);
+	if (products.size() == 0) { return; }
+
+	cout << "Please type the customer ID of the customer for this rental. You can type -1 at any time to cancel.\n";
+	while (1) {
+		getline(cin, cid);
+		if (cid == "-1") { return; }
+		if (count(customers.begin(), customers.end(), cid)) { break; }
+		else { cout << "Invalid customer ID. Please try again.\n"; }
+	}
+
+	cout << "Please type the product ID of the instrument being rented.\n";
+	while (1) {
+		getline(cin, pid);
+		if (cid == "-1") { return; }
+		if (count(products.begin(), products.end(), pid)) { break; }
+		else { cout << "Invalid product ID. Please try again.\n"; }
+	}
+
+	cout << "Please type the date the instrument was checked out, in format MM/DD/YYYY.\n";
+	getline(cin, outdate);
+	if (outdate == "-1") { return; }
+	cout << "Please type the date the instrument was checked in, in format MM/DD/YYYY.\n";
+	cout << "If the instrument has not been checked in yet, type \"none\".\n";
+	getline(cin, indate);
+	if (indate == "-1") { return; }
+
+	cout << "Please type the monthly fee for this rental. The currency symbol is not required.\n";
+	while (1) {
+		getline(cin, mfee);
+		if (mfee == "-1") { return; }
+		if (CheckIfValidCurrency(mfee)) { break; }
+		else { cout << "Invalid monthly fee. Please try again.\n"; }
+	}
+
+	cout << "Please type the total amount paid on this rental so far.\n";
+	while (1) {
+		getline(cin, tpaid);
+		if (tpaid == "-1") { return; }
+		if (CheckIfValidCurrency(tpaid)) { break; }
+		else { cout << "Invalid price. Please try again.\n"; }
+	}
+
+	query = "SELECT PRODUCT_PRICE FROM INSTRUMENT ";
+	query += "WHERE PRODUCT_ID = " + pid;
+	atr = RunQuery(db, query);
+	sqlite3_step(atr);
+	pprice = reinterpret_cast<const char*>(sqlite3_column_text(atr, 0));
+
+	cout << "Creating rental record.\n";
+	sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
+	cout << "Assembling rental. . .\n";
+	query = "INSERT INTO RENTALS (CUSTOMER_ID, PRODUCT_ID, CHECKOUT_DATE, CHECKIN_DATE, MONTHLY_FEE, PRODUCT_PRICE, TOTAL_PAID) ";
+	query += "VALUES (" + cid + ", ";
+	query += pid + ", ";
+	query += "'" + outdate + "', ";
+	if (indate == "none") { query += "'N/A', "; }
+	else { query += "'" + indate + "'. "; }
+	query += mfee + ", ";
+	query += pprice + ", ";
+	query += tpaid + "); ";
+	Finalize(db, query);
+
+	query = "SELECT RENTAL_ID FROM RENTALS ";
+	query += "WHERE CUSTOMER_ID = " + cid;
+	atr = RunQuery(db, query);
+	rentals = "'{";
+	while (sqlite3_step(atr) == SQLITE_ROW) {
+		rentals += reinterpret_cast<const char*>(sqlite3_column_text(atr, 0));
+		rentals += ",";
+	}
+	rentals.pop_back(); // delete remaining ","
+	rentals += "}'";
+	if (!sqlite3_finalize(atr)) { return; }
+
+	query = "UPDATE CUSTOMER ";
+	query += "SET CUSTOMER_RENTALS = " + rentals;
+	query += " WHERE CUSTOMER_ID = " + cid;
+	Finalize(db, query, false);
+}
+
+void AddToServices(sqlite3* db)
+{
+	string cid, sdesc, sdate, sprice, uin;
+	float disc;
+	vector<string> customers;
+
+	// Get available customers.
+	string query = "SELECT CUSTOMER_ID FROM CUSTOMER";
+	sqlite3_stmt* atv = RunQuery(db, query);
+	customers = MakeVector(db, query, atv);
+	if (customers.size() == 0) { return; }
+	sqlite3_finalize(atv);
+
+	cout << "Please type the customer ID of the customer for this service. You can type -1 at any time to cancel.\n";
+	while (1) {
+		getline(cin, cid);
+		if (cid == "-1") { return; }
+		if (count(customers.begin(), customers.end(), cid)) { break; }
+		else { cout << "Invalid customer ID. Please try again.\n"; }
+	}
+
+	cout << "Please type the description of this service.\n";
+	getline(cin, sdesc);
+	if (sdesc == "-1") { return; }
+
+	cout << "Please input the date this service was performed in format MM/DD/YYYY.\n";
+	getline(cin, sdate);
+	if (sdate == "-1") { return; }
+
+	cout << "Please type the price for this service. The currency symbol is not necessary.\n";
+	while (1) {
+		getline(cin, sprice);
+		if (sprice == "-1") { return; }
+		if (CheckIfValidCurrency(sprice)) { break; }
+		else { cout << "Invalid price. Please try again.\n"; }
+	}
+
+	cout << "Please type the discount for this transaction as a negative currency amount. The currency symbol isn't necessary.\n";
+	while (1) {
+		getline(cin, uin);
+		if (uin == "-1") { return; }
+		if (CheckIfValidCurrency(uin)) {
+			disc = stof(uin);
+			if (disc <= 0) { break; }
+			else { cout << "Error: Discount must be zero or a negative number.\n"; }
+		}
+		else { cout << "Invalid discount. Please try again.\n"; }
+	}
+
+	query = "INSERT INTO SERVICES (CUSTOMER_ID, SERVICE_DESCRIPTION, SERVICE_DATE, SERVICE_PRICE, DISCOUNT) ";
+	query += "VALUES (" + cid + ", ";
+	query += "'" + sdesc + "', ";
+	query += "'" + sdate + "', ";
+	query += sprice + ", ";
+	query += to_string(disc) + ");";
+	Finalize(db, query);
 }
 
 sqlite3_stmt* RunQuery(sqlite3* db, string q) {
@@ -620,6 +881,23 @@ vector<string> MakeVector(sqlite3* db, string& q, sqlite3_stmt* s) {
 	sqlite3_reset(s);
 	q.clear();
 	return v;
+}
+
+void TypeSelector(vector<string> v, string& t)
+{
+	for (int i = 0; i < v.size(); ++i) { cout << i + 1 << ". " << v[i] << endl; }
+	int num;
+	while (1) {
+		getline(cin, t);
+		if (t == "-1") { return; }
+		try { num = stoi(t); }
+		catch (...) { num = -1; }
+		if (num > 0 && num <= v.size()) {
+			t = v[num - 1];
+			break;
+		}
+		else { cout << "Invalid choice. Please try again.\n"; }
+	}
 }
 
 void WhatAndPK(string wp[2], int w)
@@ -677,10 +955,10 @@ int SubMenuChoice()
 	}
 }
 
-bool Finalize(sqlite3* db, string q) {
+bool Finalize(sqlite3* db, string q, bool f) {
 	// Bool is to return status in cases where finalize occurs before end of function. 
 	// Otherwise this can be run without needing to use the returned value.
-	cout << "Finalizing. . .\n";
+	if (f) { cout << "Finalizing. . .\n"; }
 	if (sqlite3_exec(db, q.c_str(), NULL, NULL, NULL) != SQLITE_OK)
 	{
 		string m_strLastError = sqlite3_errmsg(db);
@@ -690,7 +968,7 @@ bool Finalize(sqlite3* db, string q) {
 		return false;
 	}
 	else { 
-		cout << "Operation complete! Returning to main menu.\n"; 
+		if (f) { cout << "Operation complete! Returning to main menu.\n"; }
 		sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
 		return true;
 	}
@@ -698,6 +976,6 @@ bool Finalize(sqlite3* db, string q) {
 }
 
 bool CheckIfValidCurrency(string const& input) {
-	regex validCurrency("([0-9]{0,4})\.([0-9]{0,2})"); // Lazy
+	regex validCurrency("-?([0-9]{0,4})\.([0-9]{0,2})"); // Lazy
 	return regex_match(input, validCurrency);
 }
